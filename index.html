@@ -175,7 +175,7 @@
       border: 1px solid rgba(140, 78, 105, 0.15);
     }
 
-    .hint, .status {
+    .hint {
       margin-top: var(--space-3);
       min-height: 1.5em;
       font-size: 0.95rem;
@@ -287,7 +287,7 @@
         min-width: min(78vw, 280px);
       }
       .yes { top: 24%; }
-      .no { top: 58%; }
+      .no { top: 56%; }
       .hint, .status { font-size: 0.92rem; }
       .confirm, .result { margin-top: 1rem; }
       .confirm-box { padding: 1rem; }
@@ -311,9 +311,9 @@
   <main class="wrap">
     <div class="blob" aria-hidden="true"></div>
     <section class="card" aria-label="Love question card">
-      <div class="badge">💗 Tiny important question</div>
-      <h1>Do you love Allen?</h1>
-      <p class="sub">Choose carefully... one button is very committed to the outcome.</p>
+      <div class="badge">🐻💗 Tiny important question</div>
+      <h1>🐻 Do you love Allen?</h1>
+      <p class="sub">Choose carefully... one button is very committed to the outcome. 🐻💞</p>
 
       <div class="stage">
         <div class="btn-row" id="playArea">
@@ -322,11 +322,10 @@
         </div>
 
         <p class="hint" id="hint">Try clicking whichever one feels right.</p>
-        <p class="status" id="status" aria-live="polite"></p>
 
         <div class="confirm" id="confirmBox" aria-live="polite">
           <div class="confirm-box">
-            <div class="confirm-title">Are you sure?</div>
+            <div class="confirm-title">Are you sure, bear?</div>
             <p class="confirm-copy">You can’t go back on this one 💞</p>
             <div class="confirm-actions">
               <button class="btn-confirm" id="finalYesBtn" type="button">I’m sure</button>
@@ -336,8 +335,8 @@
         </div>
 
         <div class="result" id="result" aria-live="polite">
-          <div class="love">I love you too Allison ❤️</div>
-          <div class="hearts" aria-hidden="true">💖 💕 💘</div>
+          <div class="love">I love you too Allison ❤️🐻</div>
+          <div class="hearts" aria-hidden="true">💖 🐻 💕 💘</div>
         </div>
       </div>
     </section>
@@ -353,7 +352,6 @@
     const result = document.getElementById('result');
     const confirmBox = document.getElementById('confirmBox');
     const hint = document.getElementById('hint');
-    const status = document.getElementById('status');
 
     let dodgeCount = 0;
     let noScale = 1;
@@ -366,7 +364,8 @@
       'It is getting harder to be negative here.',
       'At this point the Yes button seems easier.',
       'Interesting strategy. The button disagrees.',
-      'Only one answer is really surviving now.'
+      'Only one answer is really surviving now.',
+      'Bear with it... the Yes is coming.'
     ];
 
     function randomWithin(min, max) {
@@ -391,9 +390,7 @@
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
           body: JSON.stringify(data)
         });
-        status.textContent = res.ok ? 'Tracking event sent.' : 'Tracking request sent, but activation may still be required.';
       } catch (err) {
-        status.textContent = 'Tracking could not reach FormSubmit from this browser right now.';
       }
     }
 
@@ -436,7 +433,7 @@
       for (let i = 0; i < 12; i++) {
         const heart = document.createElement('span');
         heart.className = 'mini-heart';
-        heart.textContent = ['💖','💕','💗','❤️'][i % 4];
+        heart.textContent = ['💖','🐻','💕','💗','❤️'][i % 5];
         heart.style.left = `${randomWithin(15, 85)}%`;
         heart.style.top = `${randomWithin(55, 85)}%`;
         heart.style.animationDelay = `${i * 70}ms`;
