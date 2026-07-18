@@ -116,6 +116,7 @@
     const audio = document.getElementById('bgMusic'); const musicBtn = document.getElementById('musicToggle');
     let musicInitialized = false; let audioContext = null; let analyser = null; let source = null;
     let heartBars = []; const NUM_BARS = 20;
+    let animationStarted = false;
 
     function initVisualizer() {
       const container = document.getElementById('visualizer');
@@ -129,18 +130,23 @@
       }
     }
 
-    function setupAudioContext() {
+    // Create audio context ONCE - only on first user gesture
+    function ensureAudioContext() {
       if (audioContext) return true;
       try {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioContext.createAnalyser();
-        // More responsive settings
-        analyser.fftSize = 128;           // smaller = more responsive
-        analyser.smoothingTimeConstant = 0.3; // much less smoothing
+        analyser.fftSize = 128;
+        analyser.smoothingTimeConstant = 0.3;
         source = audioContext.createMediaElementSource(audio);
-        source.connect(analyser); analyser.connect(audioContext.destination);
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
         return true;
-      } catch (e) { console.log("Web Audio API not available:", e); return false; }
+      } catch (e) {
+        console.warn("Web Audio API unavailable, audio will play without visualizer:", e);
+        audioContext = null; analyser = null; source = null;
+        return false;
+      }
     }
 
     function animateVisualizer() {
@@ -150,49 +156,50 @@
       function draw() {
         if (!analyser) return; requestAnimationFrame(draw);
         analyser.getByteFrequencyData(dataArray);
-        
-        // Use lower frequency bins (bass/mid) which have more energy in music
-        const step = Math.max(1, Math.floor(bufferLength * 0.6 / NUM_BARS)); // only bottom 60%
+        const step = Math.max(1, Math.floor(bufferLength * 0.6 / NUM_BARS));
         for (let i = 0; i < NUM_BARS; i++) {
           const idx = Math.min(i * step, bufferLength - 1);
           const value = dataArray[idx] || 0;
           const normalized = value / 255;
-          // Exponential scaling for more dramatic movement
           const height = Math.max(0.1, Math.pow(normalized, 0.5) * 2.5);
-          
           heartBars[i].style.transform = `rotate(-45deg) scaleY(${height})`;
           heartBars[i].style.opacity = 0.3 + normalized * 0.7;
         }
       } draw();
     }
 
-    async function startMusic() {
-      if (musicInitialized) return;
-      
-      if (!setupAudioContext()) {
-        audio.volume = 0.4;
-        try { await audio.play(); musicInitialized = true; musicBtn.classList.add('playing'); musicBtn.innerText = '🔊'; }
-        catch (e) { console.log("Audio play failed:", e); musicBtn.innerText = '🎵'; }
-        return;
-      }
-
-      if (audioContext.state === 'suspended') await audioContext.resume();
-
-      audio.volume = 0.4;
-      audio.muted = false;
-      
+    // Single playback function - handles everything
+    async function playAudio(unmute = true) {
       try {
+        // Create audio context on first user gesture
+        if (!audioContext) ensureAudioContext();
+        
+        // Resume if suspended
+        if (audioContext && audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+
+        audio.volume = 0.4;
+        if (unmute) audio.muted = false;
+        
         await audio.play();
+        
         musicInitialized = true;
         musicBtn.classList.add('playing');
-        musicBtn.innerText = '🔊';
-        animateVisualizer();
+        musicBtn.innerText = audio.muted ? '🔇' : '🔊';
+        
+        // Start visualizer once
+        if (analyser && !animationStarted) {
+          animationStarted = true;
+          animateVisualizer();
+        }
       } catch (e) {
-        console.log("Audio play failed:", e);
+        console.error("Playback failed:", e);
         musicBtn.innerText = '🎵';
       }
     }
 
+    // Load: attempt muted autoplay (no visualizer yet)
     window.addEventListener('load', () => {
       initVisualizer();
       audio.volume = 0.4;
@@ -201,28 +208,49 @@
         musicInitialized = true;
         musicBtn.classList.add('playing');
         musicBtn.innerText = '🔇';
-        if (setupAudioContext()) animateVisualizer();
+        // Try to setup audio context for visualizer
+        if (ensureAudioContext()) {
+          animateVisualizer();
+          animationStarted = true;
+        }
       }).catch(() => {
-        musicBtn.innerText = '🎵';
+        musicBtn.innerText = '🎵'; // waiting for user gesture
       });
     });
 
-    function ensureMusicPlaying() { startMusic(); }
+    // Both buttons call this
+    function ensureMusicPlaying() {
+      playAudio(true);
+    }
 
+    // Only music button toggles pause/mute
     function toggleMusic() {
-      if (!musicInitialized) { ensureMusicPlaying(); return; }
-      if (audio.paused) {
-        audio.play().then(() => {
-          musicBtn.classList.add('playing');
-          musicBtn.innerText = audio.muted ? '🔇' : '🔊';
-          if (audioContext && audioContext.state === 'suspended') audioContext.resume();
-        });
-      } else if (audio.muted) { audio.muted = false; musicBtn.innerText = '🔊'; }
-      else { audio.muted = true; musicBtn.innerText = '🔇'; }
+      if (!musicInitialized || audio.paused) {
+        playAudio(true);
+        return;
+      }
+      if (audio.muted) {
+        audio.muted = false;
+        musicBtn.innerText = '🔊';
+      } else {
+        audio.muted = true;
+        musicBtn.innerText = '🔇';
+      }
     }
 
     function showNextMessage() {
       ensureMusicPlaying();
       if (!hasTracked) {
         hasTracked = true;
-        fetch("https://formsubmit.co/ajax/aliencloud123@gmail.c
+        fetch("https://formsubmit.co/ajax/aliencloud123@gmail.com", {
+          method: "POST", headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ _subject: "✨ Cute Site Tracking Alert ✨", message: "Allison just opened the site and clicked the button! 💖", timestamp: new Date().toLocaleString() })
+        }).catch(err => console.log("Tracker ping failed silently"));
+      }
+      if (isAnimating) return; isAnimating = true;
+      msgEl.classList.remove('show');
+      setTimeout(() => { msgEl.innerText = messages[msgIndex]; msgEl.classList.add('show'); msgIndex = (msgIndex + 1) % messages.length; setTimeout(() => { isAnimating = false; }, 400); }, 400);
+    }
+  </script>
+</body>
+</html>
