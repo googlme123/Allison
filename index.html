@@ -40,25 +40,6 @@
     .music-toggle.playing { animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{box-shadow:0 4px 15px var(--shadow);} 50%{box-shadow:0 4px 25px rgba(255,158,181,0.6);} }
 
-    .visualizer {
-      position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
-      display: flex; align-items: center; justify-content: center; gap: 3px;
-      height: 50px; z-index: 5; pointer-events: none;
-      max-width: 90vw; overflow: hidden;
-    }
-    .heart-bar {
-      width: 10px; height: 10px; background: var(--accent); flex-shrink: 0;
-      transform: rotate(-45deg) scaleY(0.15); transform-origin: bottom center;
-      border-radius: 2px; opacity: 0.4;
-      transition: transform 0.08s ease-out, opacity 0.08s ease-out;
-    }
-    .heart-bar::before, .heart-bar::after {
-      content: ""; position: absolute; width: 10px; height: 10px;
-      background: var(--accent); border-radius: 50%;
-    }
-    .heart-bar::before { top: -5px; left: 0; }
-    .heart-bar::after { top: 0; left: 5px; }
-
     .heart-container { margin: 20px auto 40px; height: 60px; display: flex; justify-content: center; }
     .heart { position: relative; width: 50px; height: 50px; background: var(--accent); transform: rotate(-45deg);
       animation: beat 1.2s infinite cubic-bezier(0.215, 0.61, 0.355, 1); box-shadow: 0 0 25px var(--shadow); }
@@ -81,14 +62,13 @@
 </head>
 <body>
 
+  <!-- Local Music Player - expects "music.mp3" in same folder -->
   <audio id="bgMusic" loop preload="auto">
     <source src="music.mp3" type="audio/mpeg">
     Your browser does not support the audio element.
   </audio>
 
   <button class="music-toggle" id="musicToggle" onclick="toggleMusic()" aria-label="Toggle music">🎵</button>
-
-  <div class="visualizer" id="visualizer"></div>
 
   <script>
     const emojis = ['🌸', '💖', '🎀', '✨', '🌷'];
@@ -114,122 +94,49 @@
     let msgIndex = 0; const msgEl = document.getElementById('message'); let isAnimating = false; let hasTracked = false;
 
     const audio = document.getElementById('bgMusic'); const musicBtn = document.getElementById('musicToggle');
-    let musicInitialized = false; let audioContext = null; let analyser = null; let source = null;
-    let heartBars = []; const NUM_BARS = 20;
-    let animationStarted = false;
+    let musicInitialized = false;
 
-    function initVisualizer() {
-      const container = document.getElementById('visualizer');
-      heartBars = [];
-      for (let i = 0; i < NUM_BARS; i++) {
-        const bar = document.createElement('div');
-        bar.className = 'heart-bar';
-        bar.style.transitionDelay = `${i * 5}ms`;
-        container.appendChild(bar);
-        heartBars.push(bar);
-      }
-    }
-
-    // Create audio context ONCE - only on first user gesture
-    function ensureAudioContext() {
-      if (audioContext) return true;
-      try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 128;
-        analyser.smoothingTimeConstant = 0.3;
-        source = audioContext.createMediaElementSource(audio);
-        source.connect(analyser);
-        analyser.connect(audioContext.destination);
-        return true;
-      } catch (e) {
-        console.warn("Web Audio API unavailable, audio will play without visualizer:", e);
-        audioContext = null; analyser = null; source = null;
-        return false;
-      }
-    }
-
-    function animateVisualizer() {
-      if (!analyser) return;
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      function draw() {
-        if (!analyser) return; requestAnimationFrame(draw);
-        analyser.getByteFrequencyData(dataArray);
-        const step = Math.max(1, Math.floor(bufferLength * 0.6 / NUM_BARS));
-        for (let i = 0; i < NUM_BARS; i++) {
-          const idx = Math.min(i * step, bufferLength - 1);
-          const value = dataArray[idx] || 0;
-          const normalized = value / 255;
-          const height = Math.max(0.1, Math.pow(normalized, 0.5) * 2.5);
-          heartBars[i].style.transform = `rotate(-45deg) scaleY(${height})`;
-          heartBars[i].style.opacity = 0.3 + normalized * 0.7;
-        }
-      } draw();
-    }
-
-    // Single playback function - handles everything
-    async function playAudio(unmute = true) {
-      try {
-        // Create audio context on first user gesture
-        if (!audioContext) ensureAudioContext();
-        
-        // Resume if suspended
-        if (audioContext && audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
-
-        audio.volume = 0.4;
-        if (unmute) audio.muted = false;
-        
-        await audio.play();
-        
-        musicInitialized = true;
-        musicBtn.classList.add('playing');
-        musicBtn.innerText = audio.muted ? '🔇' : '🔊';
-        
-        // Start visualizer once
-        if (analyser && !animationStarted) {
-          animationStarted = true;
-          animateVisualizer();
-        }
-      } catch (e) {
-        console.error("Playback failed:", e);
-        musicBtn.innerText = '🎵';
-      }
-    }
-
-    // Load: attempt muted autoplay (no visualizer yet)
+    // Try to start muted on load (browsers allow this)
     window.addEventListener('load', () => {
-      initVisualizer();
       audio.volume = 0.4;
       audio.muted = true;
       audio.play().then(() => {
         musicInitialized = true;
         musicBtn.classList.add('playing');
-        musicBtn.innerText = '🔇';
-        // Try to setup audio context for visualizer
-        if (ensureAudioContext()) {
-          animateVisualizer();
-          animationStarted = true;
-        }
+        musicBtn.innerText = '🔇'; // muted but playing
       }).catch(() => {
-        musicBtn.innerText = '🎵'; // waiting for user gesture
+        musicBtn.innerText = '🎵'; // failed entirely
       });
     });
 
-    // Both buttons call this
+    // Ensure music is playing (unmuted) - called by both buttons
     function ensureMusicPlaying() {
-      playAudio(true);
+      if (!musicInitialized) {
+        audio.muted = false; // unmute on first user gesture
+        audio.play().catch(() => {});
+        musicInitialized = true;
+      } else if (audio.paused) {
+        audio.play().catch(() => {});
+      } else if (audio.muted) {
+        audio.muted = false;
+      }
+      // Update music button UI
+      musicBtn.classList.add('playing');
+      musicBtn.innerText = '🔊';
     }
 
-    // Only music button toggles pause/mute
+    // Only the music button can toggle pause/play and mute/unmute
     function toggleMusic() {
-      if (!musicInitialized || audio.paused) {
-        playAudio(true);
+      if (!musicInitialized) {
+        ensureMusicPlaying();
         return;
       }
-      if (audio.muted) {
+      if (audio.paused) {
+        audio.play().then(() => {
+          musicBtn.classList.add('playing');
+          musicBtn.innerText = audio.muted ? '🔇' : '🔊';
+        });
+      } else if (audio.muted) {
         audio.muted = false;
         musicBtn.innerText = '🔊';
       } else {
@@ -239,7 +146,10 @@
     }
 
     function showNextMessage() {
+      // Start/unmute music on first interaction with main button
       ensureMusicPlaying();
+
+      // Background formsubmit tracking logic (only runs once)
       if (!hasTracked) {
         hasTracked = true;
         fetch("https://formsubmit.co/ajax/aliencloud123@gmail.com", {
@@ -247,6 +157,7 @@
           body: JSON.stringify({ _subject: "✨ Cute Site Tracking Alert ✨", message: "Allison just opened the site and clicked the button! 💖", timestamp: new Date().toLocaleString() })
         }).catch(err => console.log("Tracker ping failed silently"));
       }
+
       if (isAnimating) return; isAnimating = true;
       msgEl.classList.remove('show');
       setTimeout(() => { msgEl.innerText = messages[msgIndex]; msgEl.classList.add('show'); msgIndex = (msgIndex + 1) % messages.length; setTimeout(() => { isAnimating = false; }, 400); }, 400);
