@@ -40,25 +40,6 @@
     .music-toggle.playing { animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100%{box-shadow:0 4px 15px var(--shadow);} 50%{box-shadow:0 4px 25px rgba(255,158,181,0.6);} }
 
-    /* Audio Visualizer - Line of Hearts */
-    .visualizer {
-      position: fixed; bottom: 0; left: 0; right: 0; height: 80px;
-      display: flex; align-items: flex-end; justify-content: center; gap: 4px;
-      padding-bottom: 20px; z-index: 5; pointer-events: none;
-    }
-    .heart-bar {
-      width: 12px; height: 12px; background: var(--accent);
-      transform: rotate(-45deg) scaleY(0.2); transform-origin: bottom center;
-      border-radius: 2px; opacity: 0.6;
-      transition: transform 0.1s ease-out, opacity 0.1s ease-out;
-    }
-    .heart-bar::before, .heart-bar::after {
-      content: ""; position: absolute; width: 12px; height: 12px;
-      background: var(--accent); border-radius: 50%;
-    }
-    .heart-bar::before { top: -6px; left: 0; }
-    .heart-bar::after { top: 0; left: 6px; }
-
     .heart-container { margin: 20px auto 40px; height: 60px; display: flex; justify-content: center; }
     .heart { position: relative; width: 50px; height: 50px; background: var(--accent); transform: rotate(-45deg);
       animation: beat 1.2s infinite cubic-bezier(0.215, 0.61, 0.355, 1); box-shadow: 0 0 25px var(--shadow); }
@@ -82,19 +63,105 @@
 <body>
 
   <!-- Local Music Player - expects "music.mp3" in same folder -->
-  <audio id="bgMusic" loop preload="auto" crossorigin="anonymous">
+  <audio id="bgMusic" loop preload="auto">
     <source src="music.mp3" type="audio/mpeg">
     Your browser does not support the audio element.
   </audio>
 
   <button class="music-toggle" id="musicToggle" onclick="toggleMusic()" aria-label="Toggle music">🎵</button>
 
-  <!-- Visualizer Container -->
-  <div class="visualizer" id="visualizer"></div>
-
   <script>
     const emojis = ['🌸', '💖', '🎀', '✨', '🌷'];
     for(let i = 0; i < 15; i++) {
       let el = document.createElement('div'); el.className = 'bg-item';
       el.innerText = emojis[Math.floor(Math.random() * emojis.length)];
-      el.style.
+      el.style.left = `${Math.random() * 100}vw`; el.style.fontSize = `${Math.random() * 15 + 10}px`;
+      el.style.animationDuration = `${Math.random() * 10 + 10}s`; el.style.animationDelay = `${Math.random() * 5}s`;
+      document.body.appendChild(el);
+    }
+  </script>
+
+  <div class="glass-card">
+    <div class="heart-container"><div class="heart"></div></div>
+    <h1>Thinking of you Allison</h1>
+    <p>I know you're super busy with school right now, so just a quick little break...</p>
+    <button onclick="showNextMessage()">Tap for a reminder ✨</button>
+    <div class="message-box"><div id="message"></div></div>
+  </div>
+
+  <script>
+    const messages = ["You're doing amazing! 🎀","Don't forget to drink water! 💧","Take a deep breath. 🌸","I believe in you! 💖","Can't wait to see you! 🥰","Keep up the great work! ✨"];
+    let msgIndex = 0; const msgEl = document.getElementById('message'); let isAnimating = false; let hasTracked = false;
+
+    const audio = document.getElementById('bgMusic'); const musicBtn = document.getElementById('musicToggle');
+    let musicInitialized = false;
+
+    // Try to start muted on load (browsers allow this)
+    window.addEventListener('load', () => {
+      audio.volume = 0.4;
+      audio.muted = true;
+      audio.play().then(() => {
+        musicInitialized = true;
+        musicBtn.classList.add('playing');
+        musicBtn.innerText = '🔇'; // muted but playing
+      }).catch(() => {
+        musicBtn.innerText = '🎵'; // failed entirely
+      });
+    });
+
+    // Ensure music is playing (unmuted) - called by both buttons
+    function ensureMusicPlaying() {
+      if (!musicInitialized) {
+        audio.muted = false; // unmute on first user gesture
+        audio.play().catch(() => {});
+        musicInitialized = true;
+      } else if (audio.paused) {
+        audio.play().catch(() => {});
+      } else if (audio.muted) {
+        audio.muted = false;
+      }
+      // Update music button UI
+      musicBtn.classList.add('playing');
+      musicBtn.innerText = '🔊';
+    }
+
+    // Only the music button can toggle pause/play and mute/unmute
+    function toggleMusic() {
+      if (!musicInitialized) {
+        ensureMusicPlaying();
+        return;
+      }
+      if (audio.paused) {
+        audio.play().then(() => {
+          musicBtn.classList.add('playing');
+          musicBtn.innerText = audio.muted ? '🔇' : '🔊';
+        });
+      } else if (audio.muted) {
+        audio.muted = false;
+        musicBtn.innerText = '🔊';
+      } else {
+        audio.muted = true;
+        musicBtn.innerText = '🔇';
+      }
+    }
+
+    function showNextMessage() {
+      // Start/unmute music on first interaction with main button
+      ensureMusicPlaying();
+
+      // Background formsubmit tracking logic (only runs once)
+      if (!hasTracked) {
+        hasTracked = true;
+        fetch("https://formsubmit.co/ajax/aliencloud123@gmail.com", {
+          method: "POST", headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ _subject: "✨ Cute Site Tracking Alert ✨", message: "Allison just opened the site and clicked the button! 💖", timestamp: new Date().toLocaleString() })
+        }).catch(err => console.log("Tracker ping failed silently"));
+      }
+
+      if (isAnimating) return; isAnimating = true;
+      msgEl.classList.remove('show');
+      setTimeout(() => { msgEl.innerText = messages[msgIndex]; msgEl.classList.add('show'); msgIndex = (msgIndex + 1) % messages.length; setTimeout(() => { isAnimating = false; }, 400); }, 400);
+    }
+  </script>
+</body>
+</html>
